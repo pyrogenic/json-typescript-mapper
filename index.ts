@@ -146,6 +146,25 @@ function mapFromJson<T>(decoratorMetadata: IDecoratorMetaData<any>, instance: T,
     return json ? json[decoratorName] : undefined;
 }
 
+export function deserializeInto<T extends IGenericObject>(instance: T, json: IGenericObject) {
+    Object.keys(instance).forEach((key: string) => {
+        /**
+         * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
+         */
+        let decoratorMetaData = getJsonProperty(instance, key);
+
+        /**
+         * pass value to instance
+         */
+        if (decoratorMetaData && decoratorMetaData.customConverter) {
+            instance[key] = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
+        } else {
+            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
+        }
+
+    });
+}
+
 /**
  * deserialize
  *
@@ -174,22 +193,7 @@ export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: I
      */
     let instance = new Clazz();
 
-    Object.keys(instance).forEach((key: string) => {
-        /**
-         * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
-         */
-        let decoratorMetaData = getJsonProperty(instance, key);
-
-        /**
-         * pass value to instance
-         */
-        if (decoratorMetaData && decoratorMetaData.customConverter) {
-            instance[key] =  decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
-        } else {
-            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
-        }
-
-    });
+    deserializeInto(instance, json);
 
     return instance;
 }
