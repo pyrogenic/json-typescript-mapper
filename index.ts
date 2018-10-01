@@ -146,6 +146,14 @@ function mapFromJson<T>(decoratorMetadata: IDecoratorMetaData<any>, instance: T,
     return json ? json[decoratorName] : undefined;
 }
 
+
+/**
+ * deserializeInto
+ *
+ * @function
+ * @param {T} instance, whose members will be updated using the mapping json
+ * @param {Object} json, input json object which to be mapped
+ */
 export function deserializeInto<T extends IGenericObject>(instance: T, json: IGenericObject) {
     Object.keys(instance).forEach((key: string) => {
         /**
@@ -169,7 +177,7 @@ export function deserializeInto<T extends IGenericObject>(instance: T, json: IGe
  * deserialize
  *
  * @function
- * @param {{new():T}} clazz, class type which is going to initialize and hold a mapping json
+ * @param {{new():T}} Clazz, class type which is going to initialize and hold a mapping json
  * @param {Object} json, input json object which to be mapped
  *
  * @return {T} return mapped object
