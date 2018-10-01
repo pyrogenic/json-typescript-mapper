@@ -104,6 +104,24 @@ function mapFromJson(decoratorMetadata, instance, json, key) {
     }
     return json ? json[decoratorName] : undefined;
 }
+function deserializeInto(instance, json) {
+    Object.keys(instance).forEach(function (key) {
+        /**
+         * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
+         */
+        var decoratorMetaData = getJsonProperty(instance, key);
+        /**
+         * pass value to instance
+         */
+        if (decoratorMetaData && decoratorMetaData.customConverter) {
+            instance[key] = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
+        }
+        else {
+            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
+        }
+    });
+}
+exports.deserializeInto = deserializeInto;
 /**
  * deserialize
  *
@@ -130,21 +148,7 @@ function deserialize(Clazz, json) {
      * init root class to contain json
      */
     var instance = new Clazz();
-    Object.keys(instance).forEach(function (key) {
-        /**
-         * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
-         */
-        var decoratorMetaData = getJsonProperty(instance, key);
-        /**
-         * pass value to instance
-         */
-        if (decoratorMetaData && decoratorMetaData.customConverter) {
-            instance[key] = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
-        }
-        else {
-            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
-        }
-    });
+    deserializeInto(instance, json);
     return instance;
 }
 exports.deserialize = deserialize;
