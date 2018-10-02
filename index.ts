@@ -218,10 +218,11 @@ export function deserializeInto<T extends IGenericObject>(instance: T, json: IGe
  * @function
  * @param {{new():T}} Clazz, class type which is going to initialize and hold a mapping json
  * @param {Object} json, input json object which to be mapped
+ * @param debugMetadata {true} logs decoratorMetaData, json, key, originalValue, and newValue to the debug console
  *
  * @return {T} return mapped object
  */
-export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: IGenericObject): T | undefined {
+export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: IGenericObject, debugMetadata: boolean = false): T | undefined {
     /**
      * As it is a recursive function, ignore any arguments that are unset
      */
@@ -240,7 +241,7 @@ export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: I
      */
     let instance = new Clazz();
 
-    deserializeInto(instance, json);
+    deserializeInto(instance, json, debugMetadata);
 
     return instance;
 }

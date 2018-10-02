@@ -175,10 +175,12 @@ exports.deserializeInto = deserializeInto;
  * @function
  * @param {{new():T}} Clazz, class type which is going to initialize and hold a mapping json
  * @param {Object} json, input json object which to be mapped
+ * @param debugMetadata {true} logs decoratorMetaData, json, key, originalValue, and newValue to the debug console
  *
  * @return {T} return mapped object
  */
-function deserialize(Clazz, json) {
+function deserialize(Clazz, json, debugMetadata) {
+    if (debugMetadata === void 0) { debugMetadata = false; }
     /**
      * As it is a recursive function, ignore any arguments that are unset
      */
@@ -195,7 +197,7 @@ function deserialize(Clazz, json) {
      * init root class to contain json
      */
     var instance = new Clazz();
-    deserializeInto(instance, json);
+    deserializeInto(instance, json, debugMetadata);
     return instance;
 }
 exports.deserialize = deserialize;
