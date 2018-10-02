@@ -1,5 +1,38 @@
 import 'reflect-metadata';
-import {isTargetType, isPrimitiveOrPrimitiveClass, isArrayOrArrayClass} from './libs/utils';
+
+function isPrimitiveOrPrimitiveClass(obj:any | string | number | boolean):boolean {
+    switch (typeof obj) {
+        case 'string':
+        case 'boolean':
+        case 'number':
+            return true;
+    }
+    if (obj === String || obj === Boolean || obj === Number) {
+        return true;
+    }
+    return (obj instanceof String) || (obj instanceof Number) || (obj instanceof Boolean);
+}
+
+const IS_ARRAY: any[] = [];
+const IS_NOT_ARRAY: any[] = [];
+
+function isArrayOrArrayClass(clazz:Function):boolean {
+    if (clazz === Array) {
+        return true;
+    }
+    if (IS_ARRAY.indexOf(Object.prototype) >= 0) {
+        return true;
+    }
+    if (IS_NOT_ARRAY.indexOf(Object.prototype) >= 0) {
+        return false;
+    }
+    if (Object.prototype.toString.call(clazz) === '[object Array]') {
+        IS_ARRAY.push(Object.prototype);
+        return true;
+    }
+    IS_NOT_ARRAY.push(Object.prototype);
+    return false;
+}
 
 /**
  * provide interface to indicate the object is allowed to be traversed
@@ -66,14 +99,15 @@ class DecoratorMetaData<T> {
 export function JsonProperty<T>(metadata?: IDecoratorMetaData<T>|string): (target: Object, targetKey: string | symbol)=> void {
     let decoratorMetaData: IDecoratorMetaData<T>;
 
-    if (isTargetType(metadata, 'string')) {
-        decoratorMetaData = new DecoratorMetaData<T>(metadata as string);
-    }
-    else if (isTargetType(metadata, 'object')) {
-        decoratorMetaData = metadata as IDecoratorMetaData<T>;
-    }
-    else {
-        throw new Error('index.ts: meta data in Json property is undefined. meta data: ' + metadata)
+    switch (typeof metadata) {
+        case 'string':
+            decoratorMetaData = new DecoratorMetaData<T>(metadata as string);
+            break;
+        case 'object':
+            decoratorMetaData = metadata as IDecoratorMetaData<T>;
+            break;
+        default:
+            throw new Error('index.ts: meta data in Json property is undefined. meta data: ' + metadata)
     }
 
     return Reflect.metadata(JSON_META_DATA_KEY, decoratorMetaData);
@@ -130,7 +164,7 @@ function mapFromJson<T>(decoratorMetadata: IDecoratorMetaData<any>, instance: T,
         if (metadata && metadata.clazz || isPrimitiveOrPrimitiveClass(clazz)) {
             if (innerJson && isArrayOrArrayClass(innerJson)) {
                 return innerJson.map(
-                    (item: any) => deserialize(metadata.clazz, item)
+                    (item: any) => deserialize(metadata.clazz || clazz, item)
                 );
             }
             return;
@@ -146,15 +180,15 @@ function mapFromJson<T>(decoratorMetadata: IDecoratorMetaData<any>, instance: T,
     return json ? json[decoratorName] : undefined;
 }
 
-
 /**
  * deserializeInto
  *
  * @function
- * @param {T} instance, whose members will be updated using the mapping json
- * @param {Object} json, input json object which to be mapped
+ * @param instance whose members will be updated using the mapping json
+ * @param json input to be mapped
+ * @param debugMetadata {true} logs decoratorMetaData, json, key, originalValue, and newValue to the debug console
  */
-export function deserializeInto<T extends IGenericObject>(instance: T, json: IGenericObject) {
+export function deserializeInto<T extends IGenericObject>(instance: T, json: IGenericObject, debugMetadata: boolean = false) {
     Object.keys(instance).forEach((key: string) => {
         /**
          * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
@@ -164,12 +198,17 @@ export function deserializeInto<T extends IGenericObject>(instance: T, json: IGe
         /**
          * pass value to instance
          */
+        let newValue: any;
         if (decoratorMetaData && decoratorMetaData.customConverter) {
-            instance[key] = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
+            newValue = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
         } else {
-            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
+            newValue = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
         }
-
+        if (debugMetadata) {
+            let originalValue = instance[key];
+            console.debug({decoratorMetaData, json, key, originalValue, newValue});
+        }
+        instance[key] = newValue;
     });
 }
 
@@ -182,19 +221,19 @@ export function deserializeInto<T extends IGenericObject>(instance: T, json: IGe
  *
  * @return {T} return mapped object
  */
-export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: IGenericObject): T {
+export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: IGenericObject): T | undefined {
     /**
      * As it is a recursive function, ignore any arguments that are unset
      */
     if (hasAnyNullOrUndefined(Clazz, json)) {
-        return void 0;
+        return;
     }
 
     /**
      * Prevent non-json continue
      */
-    if (!isTargetType(json, 'object')) {
-        return void 0;
+    if (typeof json !== 'object') {
+        return;
     }
     /**
      * init root class to contain json
@@ -215,7 +254,7 @@ export function deserialize<T extends IGenericObject>(Clazz: {new(): T}, json: I
  */
 export function serialize(instance: any): any {
 
-    if (!isTargetType(instance, 'object') || isArrayOrArrayClass(instance)) {
+    if (!(typeof instance !== 'object') || isArrayOrArrayClass(instance)) {
         return instance;
     }
 

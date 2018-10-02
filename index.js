@@ -1,6 +1,37 @@
 "use strict";
-require('reflect-metadata');
-var utils_1 = require('./libs/utils');
+Object.defineProperty(exports, "__esModule", { value: true });
+require("reflect-metadata");
+function isPrimitiveOrPrimitiveClass(obj) {
+    switch (typeof obj) {
+        case 'string':
+        case 'boolean':
+        case 'number':
+            return true;
+    }
+    if (obj === String || obj === Boolean || obj === Number) {
+        return true;
+    }
+    return (obj instanceof String) || (obj instanceof Number) || (obj instanceof Boolean);
+}
+var IS_ARRAY = [];
+var IS_NOT_ARRAY = [];
+function isArrayOrArrayClass(clazz) {
+    if (clazz === Array) {
+        return true;
+    }
+    if (IS_ARRAY.indexOf(Object.prototype) >= 0) {
+        return true;
+    }
+    if (IS_NOT_ARRAY.indexOf(Object.prototype) >= 0) {
+        return false;
+    }
+    if (Object.prototype.toString.call(clazz) === '[object Array]') {
+        IS_ARRAY.push(Object.prototype);
+        return true;
+    }
+    IS_NOT_ARRAY.push(Object.prototype);
+    return false;
+}
 /**
  * Decorator variable name
  *
@@ -15,7 +46,7 @@ var JSON_META_DATA_KEY = 'JsonProperty';
  * @property {string} name, indicate which json property needed to map
  * @property {string} clazz, if the target is not primitive type, map it to corresponding class
  */
-var DecoratorMetaData = (function () {
+var DecoratorMetaData = /** @class */ (function () {
     function DecoratorMetaData(name, clazz) {
         this.name = name;
         this.clazz = clazz;
@@ -31,14 +62,15 @@ var DecoratorMetaData = (function () {
  */
 function JsonProperty(metadata) {
     var decoratorMetaData;
-    if (utils_1.isTargetType(metadata, 'string')) {
-        decoratorMetaData = new DecoratorMetaData(metadata);
-    }
-    else if (utils_1.isTargetType(metadata, 'object')) {
-        decoratorMetaData = metadata;
-    }
-    else {
-        throw new Error('index.ts: meta data in Json property is undefined. meta data: ' + metadata);
+    switch (typeof metadata) {
+        case 'string':
+            decoratorMetaData = new DecoratorMetaData(metadata);
+            break;
+        case 'object':
+            decoratorMetaData = metadata;
+            break;
+        default:
+            throw new Error('index.ts: meta data in Json property is undefined. meta data: ' + metadata);
     }
     return Reflect.metadata(JSON_META_DATA_KEY, decoratorMetaData);
 }
@@ -76,7 +108,7 @@ function getJsonProperty(target, propertyKey) {
 function hasAnyNullOrUndefined() {
     var args = [];
     for (var _i = 0; _i < arguments.length; _i++) {
-        args[_i - 0] = arguments[_i];
+        args[_i] = arguments[_i];
     }
     return args.some(function (arg) { return arg === null || arg === undefined; });
 }
@@ -87,11 +119,11 @@ function mapFromJson(decoratorMetadata, instance, json, key) {
     var decoratorName = decoratorMetadata.name || key;
     var innerJson = json ? json[decoratorName] : undefined;
     var clazz = getClazz(instance, key);
-    if (utils_1.isArrayOrArrayClass(clazz)) {
+    if (isArrayOrArrayClass(clazz)) {
         var metadata_1 = getJsonProperty(instance, key);
-        if (metadata_1 && metadata_1.clazz || utils_1.isPrimitiveOrPrimitiveClass(clazz)) {
-            if (innerJson && utils_1.isArrayOrArrayClass(innerJson)) {
-                return innerJson.map(function (item) { return deserialize(metadata_1.clazz, item); });
+        if (metadata_1 && metadata_1.clazz || isPrimitiveOrPrimitiveClass(clazz)) {
+            if (innerJson && isArrayOrArrayClass(innerJson)) {
+                return innerJson.map(function (item) { return deserialize(metadata_1.clazz || clazz, item); });
             }
             return;
         }
@@ -99,12 +131,21 @@ function mapFromJson(decoratorMetadata, instance, json, key) {
             return innerJson;
         }
     }
-    if (!utils_1.isPrimitiveOrPrimitiveClass(clazz)) {
+    if (!isPrimitiveOrPrimitiveClass(clazz)) {
         return deserialize(clazz, innerJson);
     }
     return json ? json[decoratorName] : undefined;
 }
-function deserializeInto(instance, json) {
+/**
+ * deserializeInto
+ *
+ * @function
+ * @param instance whose members will be updated using the mapping json
+ * @param json input to be mapped
+ * @param debugMetadata {true} logs decoratorMetaData, json, key, originalValue, and newValue to the debug console
+ */
+function deserializeInto(instance, json, debugMetadata) {
+    if (debugMetadata === void 0) { debugMetadata = false; }
     Object.keys(instance).forEach(function (key) {
         /**
          * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
@@ -113,12 +154,18 @@ function deserializeInto(instance, json) {
         /**
          * pass value to instance
          */
+        var newValue;
         if (decoratorMetaData && decoratorMetaData.customConverter) {
-            instance[key] = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
+            newValue = decoratorMetaData.customConverter.fromJson(json[decoratorMetaData.name || key]);
         }
         else {
-            instance[key] = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
+            newValue = decoratorMetaData ? mapFromJson(decoratorMetaData, instance, json, key) : json[key];
         }
+        if (debugMetadata) {
+            var originalValue = instance[key];
+            console.debug({ decoratorMetaData: decoratorMetaData, json: json, key: key, originalValue: originalValue, newValue: newValue });
+        }
+        instance[key] = newValue;
     });
 }
 exports.deserializeInto = deserializeInto;
@@ -126,7 +173,7 @@ exports.deserializeInto = deserializeInto;
  * deserialize
  *
  * @function
- * @param {{new():T}} clazz, class type which is going to initialize and hold a mapping json
+ * @param {{new():T}} Clazz, class type which is going to initialize and hold a mapping json
  * @param {Object} json, input json object which to be mapped
  *
  * @return {T} return mapped object
@@ -136,13 +183,13 @@ function deserialize(Clazz, json) {
      * As it is a recursive function, ignore any arguments that are unset
      */
     if (hasAnyNullOrUndefined(Clazz, json)) {
-        return void 0;
+        return;
     }
     /**
      * Prevent non-json continue
      */
-    if (!utils_1.isTargetType(json, 'object')) {
-        return void 0;
+    if (typeof json !== 'object') {
+        return;
     }
     /**
      * init root class to contain json
@@ -160,7 +207,7 @@ exports.deserialize = deserialize;
  * @returns {any} an object ready to be serialized to JSON
  */
 function serialize(instance) {
-    if (!utils_1.isTargetType(instance, 'object') || utils_1.isArrayOrArrayClass(instance)) {
+    if (!(typeof instance !== 'object') || isArrayOrArrayClass(instance)) {
         return instance;
     }
     var obj = {};
@@ -188,7 +235,7 @@ function serializeProperty(metadata, prop) {
     if (!metadata.clazz) {
         return prop;
     }
-    if (utils_1.isArrayOrArrayClass(prop)) {
+    if (isArrayOrArrayClass(prop)) {
         return prop.map(function (propItem) { return serialize(propItem); });
     }
     return serialize(prop);
