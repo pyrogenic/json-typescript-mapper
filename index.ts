@@ -13,25 +13,11 @@ function isPrimitiveOrPrimitiveClass(obj:any | string | number | boolean):boolea
     return (obj instanceof String) || (obj instanceof Number) || (obj instanceof Boolean);
 }
 
-const IS_ARRAY: any[] = [];
-const IS_NOT_ARRAY: any[] = [];
-
 function isArrayOrArrayClass(clazz:Function):boolean {
     if (clazz === Array) {
         return true;
     }
-    if (IS_ARRAY.indexOf(Object.prototype) >= 0) {
-        return true;
-    }
-    if (IS_NOT_ARRAY.indexOf(Object.prototype) >= 0) {
-        return false;
-    }
-    if (Object.prototype.toString.call(clazz) === '[object Array]') {
-        IS_ARRAY.push(Object.prototype);
-        return true;
-    }
-    IS_NOT_ARRAY.push(Object.prototype);
-    return false;
+    return Array.isArray(clazz);
 }
 
 /**
@@ -189,6 +175,9 @@ function mapFromJson<T>(decoratorMetadata: IDecoratorMetaData<any>, instance: T,
  * @param debugMetadata {true} logs decoratorMetaData, json, key, originalValue, and newValue to the debug console
  */
 export function deserializeInto<T extends IGenericObject>(instance: T, json: IGenericObject, debugMetadata: boolean = false) {
+    if (hasAnyNullOrUndefined(instance, json)) {
+        return;
+    }
     Object.keys(instance).forEach((key: string) => {
         /**
          * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }

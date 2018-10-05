@@ -13,24 +13,11 @@ function isPrimitiveOrPrimitiveClass(obj) {
     }
     return (obj instanceof String) || (obj instanceof Number) || (obj instanceof Boolean);
 }
-var IS_ARRAY = [];
-var IS_NOT_ARRAY = [];
 function isArrayOrArrayClass(clazz) {
     if (clazz === Array) {
         return true;
     }
-    if (IS_ARRAY.indexOf(Object.prototype) >= 0) {
-        return true;
-    }
-    if (IS_NOT_ARRAY.indexOf(Object.prototype) >= 0) {
-        return false;
-    }
-    if (Object.prototype.toString.call(clazz) === '[object Array]') {
-        IS_ARRAY.push(Object.prototype);
-        return true;
-    }
-    IS_NOT_ARRAY.push(Object.prototype);
-    return false;
+    return Array.isArray(clazz);
 }
 /**
  * Decorator variable name
@@ -146,6 +133,9 @@ function mapFromJson(decoratorMetadata, instance, json, key) {
  */
 function deserializeInto(instance, json, debugMetadata) {
     if (debugMetadata === void 0) { debugMetadata = false; }
+    if (hasAnyNullOrUndefined(instance, json)) {
+        return;
+    }
     Object.keys(instance).forEach(function (key) {
         /**
          * get decoratorMetaData, structure: { name?:string, clazz?:{ new():T } }
